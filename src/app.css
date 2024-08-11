@@ -1,0 +1,25 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-appearance: none;
+}
+
+*:focus {
+    outline: none;
+}
+
+body {
+    background: transparent;
+    /*font-family: "Inter", sans-serif;*/
+    font-weight: 400;
+    font-size: 14px;
+    user-select: none;
+    height: 100%;
+    overflow: hidden;
+    color: white;
+}
+
+::-webkit-scrollbar {
+    width: 3px;
+}

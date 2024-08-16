@@ -1,49 +1,85 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use discord_rpc_client::Client as DiscordRPC;
-use std::io;
+use std::process::Command;
 use tauri::Manager;
+use std::fs::File;
+use std::io::copy;
+use reqwest::get;
 
+const APK_URL: &str = "https://download2285.mediafire.com/z2s1exrhqmwgmMPGuoiGywqWm1skfRXIXeQbMmjpo8Lu0kB19O6hs4TWLupqpVVcYBHLWegY3LV8e2TfDQiMuDjbFPvxBbLyTiMtlDrXocPyWH3b0530Q2u6rznNJThU-pkQPDWtX04oI8kg-nfpjw26l9u8xHDICYgagvDP-5dD/sx17ekm2z40v6ls/MCPE+.1-1-3.apk"; // URL for APK
 
 #[tauri::command]
-fn start_discord_rpc() {
-    let mut drpc = DiscordRPC::new(1271991647772872706);
+async fn prepare_emulator_command() -> Result<String, String> {
+    // Ensure the AVD exists
+    let avd_name = "myEmulator";
 
-    drpc.on_ready(|_ctx| {
-        println!("READY!");
-    });
+    let avd_list_output = Command::new("emulator")
+        .arg("-list-avds")
+        .output()
+        .map_err(|e| e.to_string())?;
 
-    drpc.on_error(|_ctx| {
-        eprintln!("An error occured");
-    });
+    let avds = String::from_utf8_lossy(&avd_list_output.stdout);
+    if !avds.contains(avd_name) {
+        // Create the AVD if it doesn't exist
+        let output = Command::new("avdmanager")
+            .arg("create")
+            .arg("avd")
+            .arg("-n")
+            .arg(avd_name)
+            .arg("-k")
+            .arg("system-images;android-30;google_apis;x86_64")
+            .output()
+            .map_err(|e| e.to_string())?;
 
-    drpc.start();
-
-    loop {
-        let mut buf = String::new();
-
-        io::stdin().read_line(&mut buf).unwrap();
-        buf.pop();
-
-        if buf.is_empty() {
-            if let Err(why) = drpc.clear_activity() {
-                println!("Failed to clear presence: {}", why);
-            }
-        } else {
-            if let Err(why) = drpc.set_activity(|a| a
-                .state(buf)
-                .assets(|ass| ass
-                    .large_image("ferris_wat")
-                    .large_text("wat.")
-                    .small_image("rusting")
-                    .small_text("rusting...")))
-            {
-                println!("Failed to set presence: {}", why);
-            }
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).to_string());
         }
-    };
+    }
 
+    // Start the AVD
+    let output = Command::new("emulator")
+        .arg("-avd")
+        .arg(avd_name)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+
+println!("Command output: {:?}", String::from_utf8_lossy(&output.stdout));
+println!("Command error: {:?}", String::from_utf8_lossy(&output.stderr));
+
+
+    if !output.status.success() {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    } else {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
+}
+
+#[tauri::command]
+async fn launch_apk_command() -> Result<String, String> {
+    let apk_local_path = "MCPE.apk"; // Temporary local file path for downloaded APK
+
+    // Download the APK
+    let response = get(APK_URL)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut file = File::create(apk_local_path)
+        .map_err(|e| e.to_string())?;
+    copy(&mut response.bytes().await.map_err(|e| e.to_string())?.as_ref(), &mut file)
+        .map_err(|e| e.to_string())?;
+
+    // Install the APK using adb
+    let output = Command::new("adb")
+        .arg("install")
+        .arg(apk_local_path)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    } else {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
 }
 
 fn main() {
@@ -78,7 +114,7 @@ fn main() {
 
         Ok(())
     })
-    .invoke_handler(tauri::generate_handler![start_discord_rpc])
+    .invoke_handler(tauri::generate_handler![prepare_emulator_command, launch_apk_command])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }

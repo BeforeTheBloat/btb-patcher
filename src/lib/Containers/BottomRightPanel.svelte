@@ -3,8 +3,35 @@
         <a href="https://discord.gg/CPvKf3KjTE" target="_blank" class="social-button discord"></a>
         <a href="https://www.youtube.com/@BeforeTheBloat" target="_blank" class="social-button youtube"></a>
     </div>
-    <div class="launch-button">Launch</div>
+    <div class="launch-button" id="launchButton">Launch</div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+            const button = document.getElementById('launchButton');
+            button.addEventListener('click', async () => {
+                button.textContent = 'Preparing...';
+                try {
+                    // Update status text
+                    await window.__TAURI_INVOKE__('prepare_emulator_command');
+
+                    button.textContent = 'Launching...';
+                    await window.__TAURI_INVOKE__('launch_apk_command', {
+                        apk_url: 'https://download2285.mediafire.com/dzrhvwytejtg6NjJsZiPKlFSjruiDexFyhu4CZzlQOPcgcTkdPcCXfgdqq1_Tm0irrOLzhtwZqyP2fr3SLzYJuUrae-7bF8y-Y7YUCwH-etpj6O-8S_j3pBsKqhfhxkASKg8bEU2nO0yapXHkXSzHGhXNEAXAph6AndEtLtzULnn/sx17ekm2z40v6ls/MCPE+.1-1-3.apk'
+                    });
+
+                    button.textContent = 'Launched!';
+                } catch (error) {
+                    button.textContent = 'Error';
+                    console.error(error);
+                }
+            });
+    });
+</script>
+
+
+
 
 <style>
     .bottomrightpanel {

@@ -12,6 +12,7 @@
 		"@sveltejs/adapter-auto": "^3.0.0",
 		"@sveltejs/kit": "^2.0.0",
 		"@sveltejs/vite-plugin-svelte": "^3.0.0",
+		"grunt-android-emulator": "^0.1.6",
 		"svelte": "^4.2.7",
 		"vite": "^5.4.0"
 	},

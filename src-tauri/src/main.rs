@@ -1,120 +1,153 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-use std::process::Command;
 use tauri::Manager;
-use std::fs::File;
-use std::io::copy;
-use reqwest::get;
-
-const APK_URL: &str = "https://download2285.mediafire.com/z2s1exrhqmwgmMPGuoiGywqWm1skfRXIXeQbMmjpo8Lu0kB19O6hs4TWLupqpVVcYBHLWegY3LV8e2TfDQiMuDjbFPvxBbLyTiMtlDrXocPyWH3b0530Q2u6rznNJThU-pkQPDWtX04oI8kg-nfpjw26l9u8xHDICYgagvDP-5dD/sx17ekm2z40v6ls/MCPE+.1-1-3.apk"; // URL for APK
+use reqwest::Client;
+use std::fs::{create_dir_all, File};
+use std::io::Write;
+use std::env;
+use std::process::Command;
 
 #[tauri::command]
-async fn prepare_emulator_command() -> Result<String, String> {
-    // Ensure the AVD exists
-    let avd_name = "myEmulator";
+async fn download_minecraft(window: tauri::Window) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let url = "https://archive.org/download/CU-MBAP/Minecraft%20Archives/Minecraft-1.1.zip/Minecraft-1.1.5.0.Appx";
+        let appdata = env::var("APPDATA").map_err(|e| e.to_string())?;
+        let output_dir = format!("{}/.btb", appdata);
+        let output_path = format!("{}/Minecraft-1.1.5.0.Appx", output_dir);
 
-    let avd_list_output = Command::new("emulator")
-        .arg("-list-avds")
-        .output()
-        .map_err(|e| e.to_string())?;
-
-    let avds = String::from_utf8_lossy(&avd_list_output.stdout);
-    if !avds.contains(avd_name) {
-        // Create the AVD if it doesn't exist
-        let output = Command::new("avdmanager")
-            .arg("create")
-            .arg("avd")
-            .arg("-n")
-            .arg(avd_name)
-            .arg("-k")
-            .arg("system-images;android-30;google_apis;x86_64")
-            .output()
-            .map_err(|e| e.to_string())?;
-
-        if !output.status.success() {
-            return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        if std::path::Path::new(&output_path).exists() {
+            return Ok(());
         }
+
+        create_dir_all(&output_dir).map_err(|e| e.to_string())?;
+
+        let client = Client::new();
+        let mut response = client.get(url).send().await.map_err(|e| e.to_string())?;
+
+        if !response.status().is_success() {
+            return Err(format!("Failed to download file. Status: {}", response.status()));
+        }
+
+        let total_size = response.content_length().unwrap_or(0);
+        let mut file = File::create(&output_path).map_err(|e| e.to_string())?;
+        let mut downloaded = 0u64;
+
+        while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+            file.write_all(&chunk).map_err(|e| e.to_string())?;
+            downloaded += chunk.len() as u64;
+
+            window.emit("progress_update", (downloaded as f64 / total_size as f64 * 100.0).round())
+                .map_err(|e| e.to_string())?;
+        }
+
+        window.emit("download_complete", ()).map_err(|e| e.to_string())?;
+
+        Ok(())
     }
-
-    // Start the AVD
-    let output = Command::new("emulator")
-        .arg("-avd")
-        .arg(avd_name)
-        .output()
-        .map_err(|e| e.to_string())?;
-
-
-println!("Command output: {:?}", String::from_utf8_lossy(&output.stdout));
-println!("Command error: {:?}", String::from_utf8_lossy(&output.stderr));
-
-
-    if !output.status.success() {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
-    } else {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("This action is only supported on Windows.".to_string())
     }
 }
 
 #[tauri::command]
-async fn launch_apk_command() -> Result<String, String> {
-    let apk_local_path = "MCPE.apk"; // Temporary local file path for downloaded APK
+async fn check_minecraft_version() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let output = Command::new("powershell")
+            .arg("-Command")
+            .arg("Get-AppxPackage -Name Microsoft.MinecraftUWP | Select-Object -ExpandProperty Version | ForEach-Object { $_.ToString().Trim() }")
+            .output()
+            .map_err(|e| e.to_string())?;
 
-    // Download the APK
-    let response = get(APK_URL)
-        .await
-        .map_err(|e| e.to_string())?;
-    let mut file = File::create(apk_local_path)
-        .map_err(|e| e.to_string())?;
-    copy(&mut response.bytes().await.map_err(|e| e.to_string())?.as_ref(), &mut file)
-        .map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            return Err("Failed to get Minecraft version".to_string());
+        }
 
-    // Install the APK using adb
-    let output = Command::new("adb")
-        .arg("install")
-        .arg(apk_local_path)
-        .output()
-        .map_err(|e| e.to_string())?;
+        let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(version)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("This action is only supported on Windows.".to_string())
+    }
+}
 
-    if !output.status.success() {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
-    } else {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+#[tauri::command]
+async fn open_minecraft(window: tauri::Window) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let appdata = env::var("APPDATA").map_err(|e| e.to_string())?;
+        let output_dir = format!("{}/.btb", appdata);
+        let appx_path = format!("{}/Minecraft-1.1.5.0.Appx", output_dir);
+
+        download_minecraft(window.clone()).await?;
+
+        let install_output = Command::new("powershell")
+            .arg("-Command")
+            .arg(format!(
+                "Add-AppxPackage -Path \"{}\"",
+                appx_path
+            ))
+            .output()
+            .map_err(|e| format!("Failed to execute command: {}", e))?;
+
+        if !install_output.status.success() {
+            let stderr = String::from_utf8_lossy(&install_output.stderr);
+            return Err(format!("Failed to install .appx file. Error: {}", stderr));
+        }
+
+        let launch_output = Command::new("powershell")
+            .arg("-Command")
+            .arg("start minecraft://")
+            .output()
+            .map_err(|e| format!("Failed to start Minecraft: {}", e))?;
+
+        if !launch_output.status.success() {
+            let stderr = String::from_utf8_lossy(&launch_output.stderr);
+            return Err(format!("Failed to start Minecraft. Error: {}", stderr));
+        }
+
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("This action is only supported on Windows.".to_string())
     }
 }
 
 fn main() {
     tauri::Builder::default()
-    .setup(|app| {
-        let window = app.get_window("main").unwrap();
+        .setup(|app| {
+            let window = app.get_window("main").unwrap();
 
-        #[cfg(target_os = "macos")]
-        {
-            use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-            if let Err(e) = apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None) {
-                log::error!("Failed to apply vibrancy: {:?}", e);
+            #[cfg(target_os = "macos")]
+            {
+                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+                if let Err(e) = apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None) {
+                    log::error!("Failed to apply vibrancy: {:?}", e);
+                }
             }
-        }
 
-        #[cfg(target_os = "windows")]
-        {
-            use window_vibrancy::{apply_acrylic, apply_blur, apply_rounded_corners};
+            #[cfg(target_os = "windows")]
+            {
+                use window_vibrancy::{apply_acrylic, apply_blur, apply_rounded_corners};
 
-            if let Err(e) = apply_acrylic(&window, None) {
-                log::error!("Failed to apply acrylic vibrancy: {:?}", e);
+                if let Err(e) = apply_acrylic(&window, None) {
+                    log::error!("Failed to apply acrylic vibrancy: {:?}", e);
+                }
 
                 if let Err(e) = apply_blur(&window) {
                     log::error!("Failed to apply blur vibrancy: {:?}", e);
                 }
+
+                if let Err(e) = apply_rounded_corners(&window) {
+                    log::error!("Failed to apply rounded corners: {:?}", e);
+                }
             }
 
-            if let Err(e) = apply_rounded_corners(&window) {
-                log::error!("Failed to apply rounded corners: {:?}", e);
-            }
-        }
-
-        Ok(())
-    })
-    .invoke_handler(tauri::generate_handler![prepare_emulator_command, launch_apk_command])
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![download_minecraft, check_minecraft_version, open_minecraft])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }

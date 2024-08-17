@@ -42,17 +42,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "android-tools-rs"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1f084a5326b94e79b07dfeb005b411f6365b029b8e668ba5b6e3f11c98f4930"
-dependencies = [
- "displaydoc",
- "thiserror",
- "walkdir",
-]
-
-[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -77,14 +66,15 @@ checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
 name = "app"
 version = "0.1.0"
 dependencies = [
- "android-tools-rs",
  "discord-rpc-client",
+ "futures-util",
  "log",
  "reqwest",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
+ "tokio",
  "window-vibrancy",
 ]
 
@@ -885,17 +875,6 @@ name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd0c93bb4b0c6d9b77f4435b0ae98c24d17f1c45b2ff844c6151a07256ca923b"
-
-[[package]]
-name = "displaydoc"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97369cbbc041bc366949bc74d34658d6cda5621039731c6310521892a3a20ae0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.72",
-]
 
 [[package]]
 name = "dlib"
@@ -4104,9 +4083,23 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
+ "parking_lot",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
+ "tokio-macros",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "693d596312e88961bc67d7f1f97af8a70227d9f90c31bba5806eec004978d752"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.72",
 ]
 
 [[package]]

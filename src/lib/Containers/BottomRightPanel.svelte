@@ -7,32 +7,35 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener("DOMContentLoaded", function() {
+        const launchButton = document.getElementById("launchButton");
 
-            const button = document.getElementById('launchButton');
-            button.addEventListener('click', async () => {
-                button.textContent = 'Preparing...';
-                try {
-                    // Update status text
-                    await window.__TAURI_INVOKE__('prepare_emulator_command');
+        launchButton.addEventListener("click", async function() {
+            if (launchButton.classList.contains("downloading")) return;
 
-                    button.textContent = 'Launching...';
-                    await window.__TAURI_INVOKE__('launch_apk_command', {
-                        apk_url: 'https://download2285.mediafire.com/dzrhvwytejtg6NjJsZiPKlFSjruiDexFyhu4CZzlQOPcgcTkdPcCXfgdqq1_Tm0irrOLzhtwZqyP2fr3SLzYJuUrae-7bF8y-Y7YUCwH-etpj6O-8S_j3pBsKqhfhxkASKg8bEU2nO0yapXHkXSzHGhXNEAXAph6AndEtLtzULnn/sx17ekm2z40v6ls/MCPE+.1-1-3.apk'
-                    });
+            launchButton.classList.add("downloading");
+            launchButton.textContent = "Checking...";
+            launchButton.style.cursor = "not-allowed";
+            launchButton.style.backgroundColor = "#2c9346";
 
-                    button.textContent = 'Launched!';
-                } catch (error) {
-                    button.textContent = 'Error';
-                    console.error(error);
-                }
-            });
+            try {
+                await window.__TAURI_INVOKE__("open_minecraft");
+                launchButton.textContent = "Minecraft Launched!";
+            } catch (error) {
+                console.error("Failed to open Minecraft:", error);
+                launchButton.textContent = "Failed!";
+                alert("An error occurred: " + error.message);
+            }
+
+            setTimeout(() => {
+                launchButton.classList.remove("downloading");
+                launchButton.textContent = "Launch";
+                launchButton.style.backgroundColor = "#47C767";
+                launchButton.style.cursor = "pointer";
+            }, 2000);
+        });
     });
 </script>
-
-
-
-
 <style>
     .bottomrightpanel {
         position: fixed;
@@ -84,7 +87,6 @@
         background-position: center;
     }
 
-
     .social-button.discord {
         border-top-left-radius: 15px;
         border-bottom-left-radius: 15px;
@@ -117,5 +119,10 @@
     .launch-button:hover {
         background-color: #2c9346;
         transform: scale(1.05);
+    }
+
+    .launch-button.downloading {
+        background-color: #2c9346;
+        cursor: not-allowed;
     }
 </style>

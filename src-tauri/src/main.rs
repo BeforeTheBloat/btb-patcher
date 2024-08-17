@@ -1,9 +1,13 @@
-use tauri::Manager;
 use reqwest::Client;
 use std::fs::{create_dir_all, File};
 use std::io::Write;
 use std::env;
 use std::process::Command;
+use tauri::Manager;
+use tokio;
+
+use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
+static mut DISCORD_IPC_CLIENT: Option<DiscordIpcClient> = None;
 
 #[tauri::command]
 async fn download_minecraft(window: tauri::Window) -> Result<(), String> {
@@ -115,7 +119,26 @@ async fn open_minecraft(window: tauri::Window) -> Result<(), String> {
     }
 }
 
-fn main() {
+fn setup_discord_ipc() -> Result<(), Box<dyn std::error::Error>> {
+    unsafe {
+        if DISCORD_IPC_CLIENT.is_none() {
+            let mut client = DiscordIpcClient::new("1271991647772872706")?;
+            client.connect()?;
+            client.set_activity(activity::Activity::new()
+                .state("Playing Minecraft v1.1.5")
+            )?;
+            DISCORD_IPC_CLIENT = Some(client);
+        }
+    }
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+    if let Err(e) = setup_discord_ipc() {
+        eprintln!("Failed to setup Discord IPC: {:?}", e);
+    }
+
     tauri::Builder::default()
         .setup(|app| {
             let window = app.get_window("main").unwrap();
